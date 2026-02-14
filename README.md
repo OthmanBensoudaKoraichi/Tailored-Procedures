@@ -1,166 +1,179 @@
-# Arizona Supreme Court Rulemaking & Administrative Orders Dataset
+Arizona Rulemaking Replication Repository
 
-### Replication Repository
-
-This repository contains the full data construction pipeline used to build a structured dataset of:
-
-1. **Arizona Supreme Court rulemaking orders ("Blackbooks")**
-2. **Arizona Supreme Court administrative orders (1956–2024)**
-
-The codebase converts archival court documents into machine-readable format, extracts individual orders, identifies the body of rules amended, constructs issuance dates, and classifies rules as local or statewide.
-
-The pipeline is designed for **law review transparency and replicability**.
+### Law Review Replication Materials
 
 ---
 
-# Repository Structure
+## Overview
+
+This repository contains the full data processing and extraction pipeline used in the accompanying law review article examining Arizona Supreme Court rulemaking and administrative orders.
+
+The repository documents every stage of the workflow, from raw document acquisition to structured datasets and published figures. All scripts are deterministic and reproducible, and LLM-assisted classification steps are clearly separated from rule-based logic to allow methodological auditing.
+
+The project consists of two primary data streams:
+
+1. **Arizona Blackbook Rule Changes (1961–2024)**
+2. **Arizona Supreme Court Administrative Orders (1956–2024)**
+
+---
+
+# Part I — Arizona Blackbook Rule Changes
+
+## 1. Source Documents
+
+Original Blackbook files were obtained in PDF/DOCX format from Arizona Court publications and stored in:
 
 ```
-project_root/
-│
-├── code/
-│   ├── blackbook_markdown_converter.py
-│   ├── blackbook_cleaner.py
-│   ├── blackbook_rules_processing.ipynb
-│   └── scraper.py
-│
-├── files/
-│   ├── blackbooks/
-│   │   ├── initial_format/        (original PDF/DOCX files)
-│   │   ├── md_format_raw/         (machine-converted Markdown)
-│   │   └── md_format_clean/       (cleaned Markdown)
-│   │
-│   └── order_extraction/
-│       ├── extracted_orders_all_files.xlsx
-│       ├── extracted_rule_bodies.xlsx
-│       ├── extracted_rule_bodies_llm_regex.xlsx
-│       └── az_court_orders.xlsx
-│
-├── .env
-└── README.md
+files/blackbooks/initial_format/
+```
+
+These documents contain annual compilations of rule amendments promulgated by the Arizona Supreme Court.
+
+---
+
+## 2. Document Conversion (Azure Document Intelligence)
+
+Script:
+
+```
+code/blackbook_markdown_converter.py
+```
+
+### Purpose
+
+Converts PDF and DOCX Blackbook files into structured Markdown using Azure Document Intelligence (“prebuilt-layout” model).
+
+### Methodological Justification
+
+Unlike traditional OCR, Azure Document Intelligence:
+
+* Uses deep learning to understand document structure
+* Preserves headings, hierarchy, and formatting
+* Retains table and layout information
+* Produces structured Markdown output
+
+This ensures high-fidelity preservation of legal formatting, which is essential for rule extraction.
+
+### Output
+
+Converted Markdown files are saved to:
+
+```
+files/blackbooks/md_format_raw/
 ```
 
 ---
 
-# Part I — Blackbook Rulemaking Dataset Construction
+## 3. Overlap Removal (1971–1975 Cleaning)
+
+Script:
+
+```
+code/blackbook_cleaner.py
+```
+
+### Research Issue
+
+Two Blackbook files overlapped:
+
+* Blackbook Rule Updates 1961–1975
+* Blackbook 1971–1980
+
+To avoid double-counting 1971–1975, the script:
+
+* Identifies a boundary marker in the 1971–1980 file
+* Removes all content prior to July 1975
+* Renames output to reflect 1975–1980 coverage
+
+### Clean Output
+
+```
+files/blackbooks/md_format_clean/
+```
+
+This produces a non-overlapping continuous dataset from 1961 forward.
 
 ---
 
-## Step 1: Document Conversion (PDF/DOCX → Markdown)
+## 4. Order-Level Extraction (LLM-Assisted)
 
-**Script:** `code/blackbook_markdown_converter.py`
+Notebook:
+
+```
+code/blackbook_rules_processing.ipynb
+```
 
 ### Method
 
-* Uses Azure Document Intelligence (`prebuilt-layout` model)
-* Converts PDF and DOCX to structured Markdown
-* Preserves headings, hierarchy, and tables
-* Maintains page boundaries using `---` separators
+Using GPT-5-mini via structured output:
 
-This is not simple OCR. The model infers document structure using machine learning.
+* Files are chunked (~5000 characters)
+* Chunks extend to the next “Effective” date boundary
+* Orders are extracted with:
 
-**Input:**
-`files/blackbooks/initial_format/`
+  * Order title
+  * Filed date
+  * Dated date
+  * Approved date
+  * Effective date
 
-**Output:**
-`files/blackbooks/md_format_raw/`
+Issued year is computed deterministically using priority:
 
----
+```
+Filed > Dated > Approved > Effective
+```
 
-## Step 2: Overlap Removal (1971–1975)
-
-**Script:** `code/blackbook_cleaner.py`
-
-Two Blackbook volumes overlap (1971–1975). To prevent double counting:
-
-* Pre-1975 content is removed from:
-
-  ```
-  Blackbook 1971-1980.md
-  ```
-* The cleaned file is renamed:
-
-  ```
-  Blackbook 1975-1980.md
-  ```
-
-All other files are copied unchanged.
-
-**Output directory:**
-`files/blackbooks/md_format_clean/`
-
-This guarantees:
-
-* 1961–1975 coverage from the earlier file
-* 1975–1980 coverage from the cleaned file
-* No duplicate orders
-
----
-
-## Step 3: Order-Level Extraction (LLM-Assisted)
-
-**Notebook:** `code/blackbook_rules_processing.ipynb`
-
-### Objective
-
-Extract each individual court order from the Markdown files.
-
-### Procedure
-
-1. Files are chunked (~5000 characters).
-2. Chunk boundaries extend to the next "Effective" line.
-3. GPT-5-mini is used with structured output (Pydantic schema).
-4. Extracted fields:
-
-   * `order_title`
-   * `filed_date`
-   * `dated_date`
-   * `approved_date`
-   * `effective_date`
-
-### Issued Year Rule (Deterministic Priority)
-
-Issued year is assigned using:
-
-1. Filed date
-2. Dated date
-3. Approved date
-4. Effective date
-
-Duplicates are removed using normalized title + effective date.
-
-**Output:**
+### Output
 
 ```
 files/order_extraction/extracted_orders_all_files.xlsx
 ```
 
-Total extracted orders: **2,157**
-
 ---
 
-## Step 4: Splitting Orders by Body of Rules
+## 5. Body-of-Rules Extraction (LLM-Assisted)
 
-Some orders amend multiple bodies of rules. Each body is separated into its own row.
+Orders often amend multiple rule systems in a single entry.
 
-### Method
+Example:
 
-* Deterministic extraction of metadata (bracket codes, dates)
-* GPT-5 structured output used only to split rule systems
-* Metadata reattached after splitting
-* Conservative deduplication applied
+> ORDER AMENDING RULES OF EVIDENCE …; ARIZONA RULES OF CRIMINAL PROCEDURE …; ARIZONA RULES OF PROCEDURE FOR THE JUVENILE COURT …
 
-**Output:**
+Each rule system is separated into its own row.
+
+Script (within notebook):
+
+* Splits one order into one row per distinct body of rules
+* Reattaches:
+
+  * Order number
+  * Bracket codes
+  * Filed/effective dates
+* Extracts standardized `body_of_rules` column
+
+### Output
 
 ```
 files/order_extraction/extracted_rule_bodies.xlsx
 ```
 
+Final dataset:
+
+* 2,178 rule-body entries
+* De-duplicated
+* Year assigned
+
 ---
 
-## Step 5: Issued Date Construction
+## 6. Robust Date Construction
 
-A unified `issued_date` column is created using:
+Issued dates are parsed using regex-based extraction supporting:
+
+* MM/DD/YYYY
+* M/D/YY
+* Month Day, Year
+
+Priority logic:
 
 ```
 filed_date
@@ -169,91 +182,96 @@ filed_date
 → effective_date
 ```
 
-The first non-null value is used.
+Final columns:
+
+* issued_date
+* issued_year
 
 ---
 
-## Step 6: Local vs Statewide Classification
+## 7. Rule Classification (Deterministic + LLM Comparison)
 
-Three parallel classification strategies are implemented:
+Each rule-body entry is classified under three parallel systems:
 
-### 1. Strict Deterministic
+### A. Regex (Strict Definition)
 
-Flags orders containing:
+* Local Rule (Regex) = 1 if “local” appears anywhere
+* Statewide Rule (Regex) = 1 − Local
+* Statewide Trial Court Rule (Regex) =
+  Statewide AND
+  NOT “Rules of the Supreme Court” AND
+  NOT “Appellate” unless also “Superior”
 
-```
-"local rules"
-```
+### B. LLM Classification
 
-### 2. Expanded Deterministic
+LLM identifies local rules that do not explicitly use the word “local,” such as:
 
-Flags as local if:
+> Rules of Practice for the Maricopa County Superior Court
 
-* Mentions an Arizona county
-* Mentions Superior, Justice, or Municipal Court
+Override rule:
+If “local” appears anywhere → classified as Local automatically.
 
-### 3. LLM Classification
+Columns created:
 
-Binary GPT-5 classification:
-
-```
-1 = Local rule
-0 = Statewide rule
-```
-
-Outputs include:
-
-* Local Rule (Strict)
-* Local Rule (Expanded)
 * Local Rule (LLM)
-* Statewide equivalents
+* Statewide Rule (LLM)
+* Statewide Trial Court Rule (LLM)
 
-**Output:**
+Final dataset:
 
 ```
 files/order_extraction/extracted_rule_bodies_llm_regex.xlsx
 ```
 
-Comparison summary:
-
-* Strict Local: 190
-* Expanded Local: 195
-* LLM Local: 77
-
-This enables robustness analysis across classification methods.
+Disagreements between regex and LLM are logged for audit.
 
 ---
 
-# Part II — Administrative Orders Dataset (1956–2024)
+## 8. Figures
+
+Figures generated include:
+
+* Statewide rule changes per year
+* Share of local vs statewide trial court rulemaking by decade
+* 100% stacked bar charts (Local vs Statewide Trial)
+
+All figures are reproducible from the final Excel dataset.
 
 ---
 
-## Script: `code/scraper.py`
+# Part II — Administrative Orders Scraper
 
-### Source
+Script:
 
-Arizona Supreme Court website:
-[https://www.azcourts.gov/orders](https://www.azcourts.gov/orders)
+```
+code/scraper.py
+```
 
-### Coverage
+## Coverage
 
+Scrapes Arizona Supreme Court administrative orders from:
+
+```
+https://www.azcourts.gov/orders/
+```
+
+Years:
 1956–2024
 
-### Method
+Handles:
 
-* Requests + BeautifulSoup
-* Handles two URL formats (pre-2016 and post-2016 restructuring)
-* Extracts:
+* Pre-2015 .aspx format
+* Post-2016 dash-format URLs
 
-  * Order number
-  * Description
-  * Date signed
-  * PDF link
-  * Year
+Extracts:
 
-Includes 1-second delay between requests.
+* Order_Number
+* Administrative_Order_Description
+* Date_Signed
+* PDF Link
+* Year
 
-**Output:**
+Output:
 
 ```
 files/order_extraction/az_court_orders.xlsx
@@ -261,95 +279,53 @@ files/order_extraction/az_court_orders.xlsx
 
 ---
 
-# Dependencies
+# Replication Instructions
 
-### Core Python
+1. Add Azure credentials to `.env`
+2. Run:
 
-* pandas
-* tqdm
-* requests
-* beautifulsoup4
-* openpyxl
-* python-dotenv
+   * `blackbook_markdown_converter.py`
+   * `blackbook_cleaner.py`
+3. Run notebook to:
 
-### Azure
+   * Extract orders
+   * Extract rule bodies
+   * Classify rules
+4. Run scraper for administrative orders
+5. Generate figures from final dataset
 
-* azure-ai-document-intelligence
-* azure-core
+All paths are relative and project-structured.
 
-Requires `.env` file containing:
+---
+
+# Transparency & Methodological Notes
+
+* LLM steps are explicitly labeled and auditable.
+* Deterministic rules are preserved alongside LLM outputs.
+* Classification disagreements are logged for sensitivity analysis.
+* Date parsing includes defensive cleaning.
+* All intermediate datasets are saved for reproducibility.
+
+---
+
+# Repository Structure
 
 ```
-AZURE_KEY=your_key
-AZURE_ENDPOINT=your_endpoint
+code/
+  blackbook_markdown_converter.py
+  blackbook_cleaner.py
+  blackbook_rules_processing.ipynb
+  scraper.py
+
+files/
+  blackbooks/
+    initial_format/
+    md_format_raw/
+    md_format_clean/
+  order_extraction/
+    extracted_orders_all_files.xlsx
+    extracted_rule_bodies.xlsx
+    extracted_rule_bodies_llm_regex.xlsx
+    az_court_orders.xlsx
 ```
-
-### LLM
-
-* langchain_openai
-* GPT-5-compatible API access
-
----
-
-# Reproducibility Instructions
-
-To reproduce the dataset:
-
-1. Place original Blackbook files in:
-
-   ```
-   files/blackbooks/initial_format/
-   ```
-
-2. Run document conversion:
-
-   ```
-   python code/blackbook_markdown_converter.py
-   ```
-
-3. Clean overlapping period:
-
-   ```
-   python code/blackbook_cleaner.py
-   ```
-
-4. Run rule extraction:
-
-   ```
-   python code/blackbook_rules_processing.ipynb
-   ```
-
-5. (Optional) Scrape administrative orders:
-
-   ```
-   python code/scraper.py
-   ```
-
----
-
-# Research Design Principles
-
-This pipeline was constructed to satisfy:
-
-* Law review replication standards
-* Transparent transformation steps
-* Conservative deduplication
-* Deterministic issuance-year logic
-* Parallel classification strategies
-* Structured LLM output only
-
-LLMs are used only for:
-
-1. Extracting order blocks
-2. Splitting rule systems
-
-All dates and metadata are handled deterministically.
-
-No substantive doctrinal interpretation is delegated to the model.
-
----
-
-# Contact
-
-For replication questions or dataset clarification, please contact Daniel Bernal.
 
