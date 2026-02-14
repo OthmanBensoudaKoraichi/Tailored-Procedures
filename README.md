@@ -235,7 +235,7 @@ Figures generated include:
 * Share of local vs statewide trial court rulemaking by decade
 * 100% stacked bar charts (Local vs Statewide Trial)
 
-All figures are reproducible from the final Excel dataset.
+All figures are reproducible from the final Excel dataset. Note that they use the LLM classification.
 
 ---
 
