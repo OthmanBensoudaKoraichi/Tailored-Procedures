@@ -1,6 +1,6 @@
 ## Overview
 
-This repository contains the full data processing and extraction pipeline used in the accompanying law review article examining Arizona Supreme Court rulemaking and administrative orders.
+This repository contains the full data processing and extraction pipeline used to conduct the underlying analysis and production of Figures 1-3 of Tailored Procedures, published by New York University Law Review in 2026.  It analyzes the volume and type of Arizona Supreme Court rulemaking and administrative orders issued since 1961. 
 
 The repository documents every stage of the workflow, from raw document acquisition to structured datasets and published figures. All scripts are deterministic and reproducible, and LLM-assisted classification steps are clearly separated from rule-based logic to allow methodological auditing.
 
