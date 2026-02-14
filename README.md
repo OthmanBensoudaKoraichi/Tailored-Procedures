@@ -1,9 +1,3 @@
-Here is your complete `README.md` file, formatted cleanly and professionally for a law review replication repository.
-
-You can copy this directly into `README.md`.
-
----
-
 # Arizona Supreme Court Rulemaking & Administrative Orders Dataset
 
 ### Replication Repository
