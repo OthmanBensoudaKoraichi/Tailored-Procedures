@@ -1,9 +1,3 @@
-Arizona Rulemaking Replication Repository
-
-### Law Review Replication Materials
-
----
-
 ## Overview
 
 This repository contains the full data processing and extraction pipeline used in the accompanying law review article examining Arizona Supreme Court rulemaking and administrative orders.
