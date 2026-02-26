@@ -217,7 +217,7 @@ Final dataset:
 files/order_extraction/extracted_rule_bodies_llm_regex.xlsx
 ```
 
-Disagreements between regex and LLM are logged for audit.
+Disagreements between regex and LLM are logged for audit. Please note that we created three different versions of the LLM classification and checked a sample of 50 cases from each decade against the source documents to determine if the classification was accurate.  When we noticed errors, we revised the instructions for the LLM and re-ran the code before verifying again.
 
 ---
 
